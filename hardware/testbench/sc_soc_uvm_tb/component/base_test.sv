@@ -2,6 +2,7 @@
 `define __GUARD_BASE_TEST_SV__ 0
 
 `include "sc_soc_uvm_tb/component/environment.sv"
+`include "sc_soc_uvm_tb/component/hello_test.sv"
 
 class base_test extends uvm_test;
 
