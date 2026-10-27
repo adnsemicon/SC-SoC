@@ -3,6 +3,7 @@
 
 `include "sc_soc_uvm_tb/component/environment.sv"
 `include "sc_soc_uvm_tb/component/hello_test.sv"
+`include "sc_soc_uvm_tb/component/smoke_test.sv"
 
 class base_test extends uvm_test;
 

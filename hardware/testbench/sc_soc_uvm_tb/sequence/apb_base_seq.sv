@@ -28,8 +28,6 @@ class apb_base_seq extends uvm_sequence #(apb_seq_item);
       addr  == local::addr;
     });
     finish_item(req);
-    // Note: current driver does not return read data via rsp.
-    // You will need to enhance the driver + use get_response() later.
     data = 0; // placeholder
   endtask
 endclass

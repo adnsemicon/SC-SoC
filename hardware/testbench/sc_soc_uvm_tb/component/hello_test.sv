@@ -10,66 +10,66 @@ class hello_test extends base_test;
     super.new(name, parent);
   endfunction
 
-virtual task main_phase(uvm_phase phase);
-  boot_core_seq boot_seq;
-  bit [7:0]     data;
-  bit           parity;
-  string        msg = "";
-  bit           got_newline = 0;
+  virtual task main_phase(uvm_phase phase);
+    boot_core_seq boot_seq;
+    bit [7:0]     data;
+    bit           parity;
+    string        msg = "";
+    bit           got_line = 0;
+    string        expected = "Hello World...!";
 
-  phase.raise_objection(this);
+    phase.raise_objection(this);
 
-  `uvm_info("TEST", "=== Starting hello_test ===", UVM_LOW)
+    `uvm_info("TEST", "=== Starting hello_test ===", UVM_LOW)
 
-  // 1. Load symbols & program
-  load_symbols("prog.sym");
-  load_program("prog.hex");
-  `uvm_info("TEST", "Program loaded", UVM_MEDIUM)
-
-  // _start অ্যাড্রেস দেখাও
-  if (sym.exists("_start"))
+    load_symbols("prog.sym");
+    if (!sym.exists("_start"))
+      `uvm_fatal("TEST", "_start not found. Run: make test TEST=uart");
     `uvm_info("TEST", $sformatf("_start = 0x%08h", sym["_start"]), UVM_MEDIUM)
-  else
-    `uvm_error("TEST", "_start symbol not found!")
 
-  #1us;
+    load_program("prog.hex");
+    `uvm_info("TEST", "Program loaded", UVM_MEDIUM)
 
-  // 2. Boot the core (সঠিক অ্যাড্রেস দিয়ে)
-  boot_seq = boot_core_seq::type_id::create("boot_seq");
-  boot_seq.boot_addr = sym["_start"];          // ← এখানেই মূল ফিক্স
-  `uvm_info("TEST", $sformatf("Starting boot sequence from 0x%08h...", boot_seq.boot_addr), UVM_MEDIUM)
-  boot_seq.start(env.apb.sqr);
-  `uvm_info("TEST", "Boot sequence finished. Listening on UART...", UVM_MEDIUM)
+    #2us;
 
-  // 3. UART থেকে ডেটা পড়া
-  fork
-    begin
-      #2000us;   // একটু বেশি সময় দিলাম
-      if (!got_newline)
-        `uvm_warning("TEST", "Timeout! No complete UART line received")
-    end
-    begin
-      forever begin
-        uart_intf.recv_rx(data, parity, 115200, 0, 0, 0, 8);
+    boot_seq = boot_core_seq::type_id::create("boot_seq");
+    boot_seq.boot_addr = sym["_start"];
+    boot_seq.start(env.apb.sqr);
+    `uvm_info("TEST", "Core booted. Listening UART @ 1Mbps...", UVM_MEDIUM)
 
-        if (data == "\n" || data == "\r") begin
-          if (msg.len() > 0) begin
-            `uvm_info("UART", $sformatf("Software said: \"%s\"", msg), UVM_LOW)
-            got_newline = 1;
+    fork
+      begin
+        #8000us;
+        if (!got_line)
+          `uvm_warning("TEST", $sformatf("Timeout. Got so far: \"%s\"", msg));
+      end
+      begin
+        forever begin
+          @(negedge uart_intf.rx);
+          uart_intf.recv_rx(data, parity, 1000000, 0, 0, 0, 8);
+
+          if (data >= 32 && data <= 126)
+            msg = {msg, string'(data)};
+
+          `uvm_info("UART", $sformatf("got: %c (0x%02h) msg=\"%s\"", data, data, msg), UVM_MEDIUM)
+
+          if (msg.len() >= expected.len()) begin
+            `uvm_info("UART", $sformatf(">>> \"%s\"", msg), UVM_LOW)
+            if (msg.substr(0, expected.len()-1) == expected)
+              `uvm_info("TEST", "PASS: UART message matched", UVM_LOW)
+            else
+              `uvm_error("TEST", $sformatf("FAIL: expected \"%s\"", expected))
+            got_line = 1;
             break;
           end
-        end else begin
-          msg = {msg, string'(data)};
         end
       end
-    end
-  join_any
-  disable fork;
+    join_any
+    disable fork;
 
-  `uvm_info("TEST", "=== hello_test finished ===", UVM_LOW)
-  phase.drop_objection(this);
-endtask
-
+    `uvm_info("TEST", "=== finished ===", UVM_LOW)
+    phase.drop_objection(this);
+  endtask
 endclass
 
 `endif
